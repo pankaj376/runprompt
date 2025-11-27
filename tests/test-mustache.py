@@ -85,6 +85,15 @@ def test_combined():
          {"items": [1]}, "have")
 
 
+def test_comments():
+    print("\n--- Comments ---")
+    test("simple comment", "Hello {{! this is a comment }}World", {}, "Hello World")
+    test("comment removes entirely", "{{! comment }}", {}, "")
+    test("comment with variable", "{{! ignore }}{{name}}", {"name": "Alice"}, "Alice")
+    test("multiline comment", "Hello {{! this\nis\nmultiline }}World", {}, "Hello World")
+    test("comment between variables", "{{a}}{{! middle }}{{b}}", {"a": "X", "b": "Y"}, "XY")
+
+
 def main():
     test_basic_interpolation()
     test_dot_notation()
@@ -92,6 +101,7 @@ def main():
     test_section_lists()
     test_inverted_sections()
     test_combined()
+    test_comments()
 
     print("\n" + "=" * 40)
     print("Passed: %d, Failed: %d" % (passed, failed))

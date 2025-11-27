@@ -120,6 +120,9 @@ def render_template(template, variables):
         return ctx
 
     def render(tmpl, ctx):
+        # Remove comments: {{! ... }}
+        tmpl = re.sub(r"\{\{!.*?\}\}", "", tmpl, flags=re.DOTALL)
+
         # Process sections: {{#key}}...{{/key}}
         def section_replace(match):
             key = match.group(1)
