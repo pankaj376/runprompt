@@ -29,6 +29,8 @@ echo '{"name": "World"}' | ./runprompt hello.prompt
 
 ## Examples
 
+In addition to the following, see the [tests folder](tests/) for more example `.prompt` files.
+
 ### Basic prompt with stdin
 
 ```handlebars
