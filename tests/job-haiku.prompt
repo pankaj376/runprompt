@@ -1,0 +1,18 @@
+---
+model: openrouter/google/gemini-2.5-pro
+input:
+  schema:
+    name: string, the name of the character
+    age: number, the age of the character
+    occupation: string, the person's occupation
+output:
+  format: text
+---
+
+Please create a pretty haiku about the following person:
+
+name: {{name}}
+age: {{age}}
+occupation: {{occupation}}
+
+Thanks!
