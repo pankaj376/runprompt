@@ -23,9 +23,11 @@ Say hello to {{name}}!
 Run it:
 
 ```bash
-export ANTHROPIC_API_KEY="your-key"
+export OPENAI_API_KEY="your-key"
 echo '{"name": "World"}' | ./runprompt hello.prompt
 ```
+
+(You can get an OpenAI key from here: <https://platform.openai.com/api-keys>)
 
 ## Examples
 
@@ -99,10 +101,10 @@ Override any frontmatter value from the command line:
 Set API keys for your providers:
 
 ```bash
-export ANTHROPIC_API_KEY="..."
-export OPENAI_API_KEY="..."
-export GOOGLE_API_KEY="..."
-export OPENROUTER_API_KEY="..."
+export ANTHROPIC_API_KEY="..."  # https://console.anthropic.com/settings/keys
+export OPENAI_API_KEY="..."     # https://platform.openai.com/api-keys
+export GOOGLE_API_KEY="..."     # https://aistudio.google.com/app/apikey
+export OPENROUTER_API_KEY="..." # https://openrouter.ai/settings/keys
 ```
 
 ### RUNPROMPT_* overrides
@@ -128,11 +130,11 @@ Use `-v` to see request/response details:
 
 Models are specified as `provider/model-name`:
 
-| Provider | Model format | API key env var |
-|----------|--------------|-----------------|
-| Anthropic | `anthropic/claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
-| OpenAI | `openai/gpt-4o` | `OPENAI_API_KEY` |
-| Google AI | `googleai/gemini-1.5-pro` | `GOOGLE_API_KEY` |
-| OpenRouter | `openrouter/anthropic/claude-sonnet-4-20250514` | `OPENROUTER_API_KEY` |
+| Provider | Model format | API key |
+|----------|--------------|---------|
+| Anthropic | `anthropic/claude-sonnet-4-20250514` | [Get key](https://console.anthropic.com/settings/keys) |
+| OpenAI | `openai/gpt-4o` | [Get key](https://platform.openai.com/api-keys) |
+| Google AI | `googleai/gemini-1.5-pro` | [Get key](https://aistudio.google.com/app/apikey) |
+| OpenRouter | `openrouter/anthropic/claude-sonnet-4-20250514` | [Get key](https://openrouter.ai/settings/keys) |
 
 [OpenRouter](https://openrouter.ai) provides access to models from many providers (Anthropic, Google, Meta, etc.) through a single API key.
