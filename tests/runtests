@@ -26,6 +26,8 @@ run_test "self.prompt" ./runprompt --model test tests/self.prompt
 
 run_test "shebang.prompt" bash -c 'echo '"'"'{"name": "World"}'"'"' | ./runprompt --model test tests/shebang.prompt'
 
+run_test "base-url tests" python3 tests/test-base-url.py
+
 echo ""
 echo "Passed: $pass, Failed: $fail"
 

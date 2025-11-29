@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test custom base URL override functionality."""
 import subprocess
-import sys
 import os
 import json
 import threading
@@ -16,6 +15,9 @@ MOCK_RESPONSE = {
         }
     }]
 }
+
+passed = 0
+failed = 0
 
 
 class MockHandler(BaseHTTPRequestHandler):
@@ -42,15 +44,31 @@ def run_server(server):
     server.serve_forever()
 
 
-def test_base_url_env():
-    """Test OPENAI_BASE_URL environment variable."""
+def start_server(port):
     MockHandler.received_requests = []
-    server = HTTPServer(('127.0.0.1', MOCK_PORT), MockHandler)
+    server = HTTPServer(('127.0.0.1', port), MockHandler)
     thread = threading.Thread(target=run_server, args=(server,))
     thread.daemon = True
     thread.start()
     time.sleep(0.1)
+    return server
 
+
+def test(name, func):
+    global passed, failed
+    try:
+        func()
+        print("✅ %s" % name)
+        passed += 1
+    except AssertionError as e:
+        print("❌ %s" % name)
+        print("   %s" % e)
+        failed += 1
+
+
+def test_base_url_env():
+    """Test OPENAI_BASE_URL environment variable."""
+    server = start_server(MOCK_PORT)
     try:
         env = os.environ.copy()
         env['OPENAI_BASE_URL'] = 'http://127.0.0.1:%d' % MOCK_PORT
@@ -62,29 +80,20 @@ def test_base_url_env():
             env=env,
             input='{"name": "World"}'
         )
-        print("stdout:", result.stdout)
-        print("stderr:", result.stderr)
         assert result.returncode == 0, "Expected success, got: %s" % result.stderr
-        assert "Hello from mock server!" in result.stdout
-        assert len(MockHandler.received_requests) == 1
+        assert "Hello from mock server!" in result.stdout, "Unexpected output"
+        assert len(MockHandler.received_requests) == 1, "Expected 1 request"
         req = MockHandler.received_requests[0]
-        assert req['path'] == '/chat/completions'
-        assert 'Bearer test-key' in req['headers'].get('Authorization', '')
+        assert req['path'] == '/chat/completions', "Wrong path"
+        assert 'Bearer test-key' in req['headers'].get('Authorization', ''), \
+            "Missing auth header"
     finally:
         server.shutdown()
-
-    print("PASS: test_base_url_env")
 
 
 def test_base_url_cli():
     """Test --base-url CLI flag."""
-    MockHandler.received_requests = []
-    server = HTTPServer(('127.0.0.1', MOCK_PORT + 1), MockHandler)
-    thread = threading.Thread(target=run_server, args=(server,))
-    thread.daemon = True
-    thread.start()
-    time.sleep(0.1)
-
+    server = start_server(MOCK_PORT + 1)
     try:
         env = os.environ.copy()
         env['OPENAI_API_KEY'] = 'cli-test-key'
@@ -98,29 +107,20 @@ def test_base_url_cli():
             env=env,
             input='{"name": "World"}'
         )
-        print("stdout:", result.stdout)
-        print("stderr:", result.stderr)
         assert result.returncode == 0, "Expected success, got: %s" % result.stderr
-        assert "Hello from mock server!" in result.stdout
-        assert len(MockHandler.received_requests) == 1
+        assert "Hello from mock server!" in result.stdout, "Unexpected output"
+        assert len(MockHandler.received_requests) == 1, "Expected 1 request"
         req = MockHandler.received_requests[0]
-        assert req['path'] == '/chat/completions'
-        assert 'Bearer cli-test-key' in req['headers'].get('Authorization', '')
+        assert req['path'] == '/chat/completions', "Wrong path"
+        assert 'Bearer cli-test-key' in req['headers'].get('Authorization', ''), \
+            "Missing auth header"
     finally:
         server.shutdown()
-
-    print("PASS: test_base_url_cli")
 
 
 def test_base_url_fallback():
     """Test BASE_URL fallback environment variable."""
-    MockHandler.received_requests = []
-    server = HTTPServer(('127.0.0.1', MOCK_PORT + 2), MockHandler)
-    thread = threading.Thread(target=run_server, args=(server,))
-    thread.daemon = True
-    thread.start()
-    time.sleep(0.1)
-
+    server = start_server(MOCK_PORT + 2)
     try:
         env = os.environ.copy()
         env.pop('OPENAI_BASE_URL', None)
@@ -133,25 +133,15 @@ def test_base_url_fallback():
             env=env,
             input='{"name": "World"}'
         )
-        print("stdout:", result.stdout)
-        print("stderr:", result.stderr)
         assert result.returncode == 0, "Expected success, got: %s" % result.stderr
-        assert "Hello from mock server!" in result.stdout
+        assert "Hello from mock server!" in result.stdout, "Unexpected output"
     finally:
         server.shutdown()
-
-    print("PASS: test_base_url_fallback")
 
 
 def test_provider_ignored_with_base_url():
     """Test that provider prefix is ignored when base URL is set."""
-    MockHandler.received_requests = []
-    server = HTTPServer(('127.0.0.1', MOCK_PORT + 3), MockHandler)
-    thread = threading.Thread(target=run_server, args=(server,))
-    thread.daemon = True
-    thread.start()
-    time.sleep(0.1)
-
+    server = start_server(MOCK_PORT + 3)
     try:
         env = os.environ.copy()
         env['OPENAI_BASE_URL'] = 'http://127.0.0.1:%d' % (MOCK_PORT + 3)
@@ -163,20 +153,21 @@ def test_provider_ignored_with_base_url():
             env=env,
             input='{"name": "World"}'
         )
-        print("stdout:", result.stdout)
-        print("stderr:", result.stderr)
-        assert result.returncode == 0
+        assert result.returncode == 0, "Expected success, got: %s" % result.stderr
         req = MockHandler.received_requests[0]
-        assert req['body']['model'] == 'claude-sonnet-4-20250514'
+        assert req['body']['model'] == 'claude-sonnet-4-20250514', \
+            "Provider prefix not stripped from model"
     finally:
         server.shutdown()
 
-    print("PASS: test_provider_ignored_with_base_url")
-
 
 if __name__ == '__main__':
-    test_base_url_env()
-    test_base_url_cli()
-    test_base_url_fallback()
-    test_provider_ignored_with_base_url()
-    print("\nAll base URL tests passed!")
+    test("base-url env var", test_base_url_env)
+    test("base-url cli flag", test_base_url_cli)
+    test("base-url fallback", test_base_url_fallback)
+    test("provider ignored with base-url", test_provider_ignored_with_base_url)
+
+    print("")
+    print("Passed: %d, Failed: %d" % (passed, failed))
+    if failed > 0:
+        exit(1)
