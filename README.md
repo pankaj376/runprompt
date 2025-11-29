@@ -111,11 +111,17 @@ Note: `runprompt` must be in your PATH, or use a relative/absolute path in the s
 
 ### CLI overrides
 
-Override any frontmatter value from the command line:
+Override frontmatter values from the command line:
 
 ```bash
 ./runprompt --model anthropic/claude-haiku-4-20250514 hello.prompt
-./runprompt --name "Alice" hello.prompt
+./runprompt --output.format json extract.prompt
+```
+
+Note: CLI overrides set frontmatter values (model, config, output format, etc.), not template variables. To pass template variables, use stdin:
+
+```bash
+echo '{"name": "Alice"}' | ./runprompt hello.prompt
 ```
 
 ## Template syntax
