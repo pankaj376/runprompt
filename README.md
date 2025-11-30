@@ -2,7 +2,9 @@
 
 A single-file Python script for running [Dotprompt](https://google.github.io/dotprompt/) files.
 
-[Quick start](#quick-start) | [dotprompt](#what-is-dotprompt) | [Examples](#examples) | [Configuration](#configuration) | [Providers](#providers) | [Spec compliance](#spec-compliance)
+[Dotprompt](https://google.github.io/dotprompt/) is an prompt template format for LLMs where a `.prompt` file contains the prompt and metadata (model, schema, config) in a single file.
+
+[Quick start](#quick-start) | [Examples](#examples) | [Configuration](#configuration) | [Providers](#providers) | [Spec compliance](#spec-compliance)
 
 ## Quick start
 
@@ -28,12 +30,6 @@ echo '{"name": "World"}' | ./runprompt hello.prompt
 ```
 
 (You can get an OpenAI key from here: <https://platform.openai.com/api-keys>)
-
-## What is Dotprompt?
-
-[Dotprompt](https://google.github.io/dotprompt/) is an executable prompt template format for GenAI. A `.prompt` file contains both the prompt template and metadata (model, schema, config) in a single file.
-
-`runprompt` is a minimal, single-file Python implementation with no dependencies.
 
 ## Examples
 
