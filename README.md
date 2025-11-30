@@ -4,7 +4,7 @@ A single-file Python script for running [Dotprompt](https://google.github.io/dot
 
 [Dotprompt](https://google.github.io/dotprompt/) is an prompt template format for LLMs where a `.prompt` file contains the prompt and metadata (model, schema, config) in a single file.
 
-[Quick start](#quick-start) | [Examples](#examples) | [Configuration](#configuration) | [Providers](#providers) | [Spec compliance](#spec-compliance)
+[Quick start](#quick-start) | [Examples](#examples) | [Configuration](#configuration) | [Providers](#providers) | [Caching](#caching) | [Spec compliance](#spec-compliance)
 
 ## Quick start
 
@@ -189,6 +189,28 @@ Models are specified as `provider/model-name`:
 | OpenRouter | `openrouter/anthropic/claude-sonnet-4-20250514` | [Get key](https://openrouter.ai/settings/keys) |
 
 [OpenRouter](https://openrouter.ai) provides access to models from many providers (Anthropic, Google, Meta, etc.) through a single API key.
+
+## Caching
+
+Enable response caching to avoid redundant API calls during development:
+
+```bash
+# Enable caching with -c or --cache
+./runprompt --cache hello.prompt
+
+# Second run with same input uses cached response
+./runprompt --cache hello.prompt
+```
+
+You can also enable the cache across a whole pipeline with the env var:
+
+```bash
+export RUNPROMPT_CACHE=1; echo "..." | ./runprompt a.prompt | ./runprompt b.prompt
+```
+
+Cached responses are stored in `~/.cache/runprompt/` (or `$XDG_CACHE_HOME/runprompt/`), based on the inputs applied to the template and frontmatter.
+
+See `--help` for more information.
 
 ## Spec compliance
 

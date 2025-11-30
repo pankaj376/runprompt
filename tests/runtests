@@ -28,6 +28,8 @@ run_test "shebang.prompt" bash -c 'echo '"'"'{"name": "World"}'"'"' | ./runpromp
 
 run_test "base-url tests" python3 tests/test-base-url.py
 
+run_test "cache tests" python3 tests/test-cache.py
+
 echo ""
 echo "Passed: $pass, Failed: $fail"
 

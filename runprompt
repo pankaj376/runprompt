@@ -3,6 +3,7 @@ import sys
 import os
 import json
 import re
+import hashlib
 import urllib.request
 import urllib.error
 
@@ -40,6 +41,8 @@ Run Dotprompt (.prompt) files from the command line.
 Options:
   -h, --help              Show this help message and exit
   -v, --verbose           Show request/response details
+  -c, --cache             Enable response caching
+  --clear-cache           Clear the response cache and exit
   --save-response <file>  Save raw API response to file
   --base-url <url>        Use custom OpenAI-compatible endpoint
   --openai-base-url <url> Use custom OpenAI-compatible endpoint
@@ -58,12 +61,15 @@ Environment:
   OPENAI_BASE_URL         Custom OpenAI-compatible endpoint URL
   BASE_URL                Custom OpenAI-compatible endpoint URL (fallback)
   RUNPROMPT_<KEY>         Override frontmatter (e.g. RUNPROMPT_MODEL=openai/gpt-4o)
+  RUNPROMPT_CACHE         Enable caching (set to 1)
+  RUNPROMPT_CACHE_DIR     Custom cache directory
 
 Examples:
   runprompt hello.prompt
   echo '{"name": "World"}' | runprompt hello.prompt
   runprompt --model openai/gpt-4o hello.prompt
   runprompt -v --save-response out.json hello.prompt
+  runprompt --cache hello.prompt
   OPENAI_BASE_URL=http://localhost:11434/v1 runprompt hello.prompt
 """
 
@@ -71,6 +77,57 @@ Examples:
 def log(msg):
     if VERBOSE:
         print(msg, file=sys.stderr)
+
+
+def get_cache_dir():
+    if os.environ.get("RUNPROMPT_CACHE_DIR"):
+        return os.environ["RUNPROMPT_CACHE_DIR"]
+    xdg_cache = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+    return os.path.join(xdg_cache, "runprompt")
+
+
+def cache_key(rendered_prompt, effective_meta):
+    data = json.dumps({
+        "prompt": rendered_prompt,
+        "meta": effective_meta,
+    }, sort_keys=True)
+    return hashlib.sha256(data.encode()).hexdigest()
+
+
+def cache_get(key):
+    cache_dir = get_cache_dir()
+    cache_file = os.path.join(cache_dir, "%s.json" % key)
+    if os.path.exists(cache_file):
+        log("Cache hit: %s" % cache_file)
+        with open(cache_file, "r") as f:
+            return json.load(f)
+    log("Cache miss")
+    return None
+
+
+def cache_set(key, response, provider):
+    cache_dir = get_cache_dir()
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    cache_file = os.path.join(cache_dir, "%s.json" % key)
+    response_with_provider = {"_provider": provider}
+    response_with_provider.update(response)
+    with open(cache_file, "w") as f:
+        json.dump(response_with_provider, f, indent=2)
+    log("Cached response: %s" % cache_file)
+
+
+def clear_cache():
+    cache_dir = get_cache_dir()
+    if not os.path.exists(cache_dir):
+        print("Cache directory does not exist: %s" % cache_dir)
+        return
+    count = 0
+    for filename in os.listdir(cache_dir):
+        if filename.endswith(".json"):
+            os.remove(os.path.join(cache_dir, filename))
+            count += 1
+    print("Cleared %d cached response(s) from %s" % (count, cache_dir))
 
 
 def parse_prompt_file(path):
@@ -455,6 +512,8 @@ def extract_response(response, output_config, provider):
 def apply_overrides(meta):
     for env_key, env_value in os.environ.items():
         if env_key.startswith("RUNPROMPT_"):
+            if env_key in ("RUNPROMPT_CACHE", "RUNPROMPT_CACHE_DIR"):
+                continue
             key = env_key[10:].lower()
             parsed = parse_yaml_value(env_value)
             if parsed is not None:
@@ -467,6 +526,8 @@ def parse_args(args):
     verbose = False
     save_response_path = None
     base_url = None
+    use_cache = False
+    clear_cache_flag = False
     overrides = {}
     remaining = []
     i = 0
@@ -477,6 +538,10 @@ def parse_args(args):
             sys.exit(0)
         elif arg == "-v" or arg == "--verbose":
             verbose = True
+        elif arg == "-c" or arg == "--cache":
+            use_cache = True
+        elif arg == "--clear-cache":
+            clear_cache_flag = True
         elif arg == "--save-response":
             if i + 1 < len(args):
                 i += 1
@@ -511,7 +576,8 @@ def parse_args(args):
         else:
             remaining.append(arg)
         i += 1
-    return verbose, save_response_path, base_url, overrides, remaining
+    return verbose, save_response_path, base_url, use_cache, clear_cache_flag, \
+        overrides, remaining
 
 
 def read_stdin():
@@ -522,9 +588,17 @@ def read_stdin():
 
 def main():
     global VERBOSE, PROMPT_PATH
-    verbose, save_response_path, arg_base_url, arg_overrides, remaining = \
-        parse_args(sys.argv[1:])
+    verbose, save_response_path, arg_base_url, use_cache, clear_cache_flag, \
+        arg_overrides, remaining = parse_args(sys.argv[1:])
     VERBOSE = verbose
+
+    if clear_cache_flag:
+        clear_cache()
+        sys.exit(0)
+
+    if os.environ.get("RUNPROMPT_CACHE") == "1":
+        use_cache = True
+
     if len(remaining) < 1:
         print("Usage: runprompt [options] <prompt_file>", file=sys.stderr)
         print("Try 'runprompt --help' for more information.", file=sys.stderr)
@@ -574,11 +648,27 @@ def main():
         else:
             url, api_key = get_provider_config(provider)
             effective_provider = provider
-        response = make_request(url, api_key, model, prompt, output_config,
-                                effective_provider)
-        if save_response_path:
-            save_response(response, effective_provider, save_response_path)
-        result = extract_response(response, output_config, effective_provider)
+
+        cached_response = None
+        key = None
+        if use_cache:
+            key = cache_key(prompt, meta)
+            log("Cache key: %s" % key)
+            cached_response = cache_get(key)
+
+        if cached_response:
+            response = cached_response
+            cached_provider = response.get("_provider", effective_provider)
+            result = extract_response(response, output_config, cached_provider)
+        else:
+            response = make_request(url, api_key, model, prompt, output_config,
+                                    effective_provider)
+            if use_cache and key:
+                cache_set(key, response, effective_provider)
+            if save_response_path:
+                save_response(response, effective_provider, save_response_path)
+            result = extract_response(response, output_config,
+                                      effective_provider)
     print(result)
 
 
