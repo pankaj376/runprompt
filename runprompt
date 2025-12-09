@@ -581,17 +581,28 @@ def truncate_args_for_display(args):
     return args
 
 
+def read_tty_line(prompt_text):
+    try:
+        tty = open("/dev/tty", "r")
+        sys.stderr.write(prompt_text)
+        sys.stderr.flush()
+        response = tty.readline().strip()
+        tty.close()
+        return response
+    except (IOError, OSError):
+        return None
+
+
 def prompt_user_for_tool(tool_name, args):
     display_args = truncate_args_for_display(args)
     print("\nTool call: %s" % tool_name, file=sys.stderr)
     print("Arguments: %s" % json.dumps(display_args, indent=2), file=sys.stderr)
     print("", file=sys.stderr)
     while True:
-        try:
-            response = input("Run this tool? [y/n]: ")
-        except EOFError:
-            return False
-        if response.lower() in ("y", "yes"):
+        response = read_tty_line("Run this tool? [Y/n]: ")
+        if response is None:
+            return True
+        if response == "" or response.lower() in ("y", "yes"):
             return True
         if response.lower() in ("n", "no"):
             return False
