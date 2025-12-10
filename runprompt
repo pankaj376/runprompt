@@ -29,6 +29,7 @@ PROVIDERS = {
 }
 
 RED = "\033[31m"
+YELLOW = "\033[33m"
 RESET = "\033[0m"
 TIMEOUT = 120
 
@@ -599,7 +600,7 @@ def format_tool_call_summary(tool_name, args):
 
 def print_tool_call(tool_name, args):
     summary = format_tool_call_summary(tool_name, args)
-    print(summary, file=sys.stderr)
+    print("%s%s%s" % (YELLOW, summary, RESET), file=sys.stderr)
 
 
 def read_tty_line(prompt_text):
