@@ -50,6 +50,23 @@ cat article.txt | ./runprompt summarize.prompt
 
 The special `{{STDIN}}` variable always contains the raw stdin as a string.
 
+### Command line arguments
+
+Pass arguments directly on the command line:
+
+```handlebars
+---
+model: anthropic/claude-sonnet-4-20250514
+---
+Process this: {{ARGS}}
+```
+
+```bash
+./runprompt process.prompt Hello world, please summarize this text.
+```
+
+The special `{{ARGS}}` variable contains all arguments after the prompt file, joined with spaces.
+
 ### Structured JSON output
 
 Extract structured data using an output schema:

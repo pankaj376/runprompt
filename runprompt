@@ -57,6 +57,7 @@ Options:
 Input:
   Pipe JSON to set template variables: echo '{"name": "World"}' | runprompt hello.prompt
   Pipe text for {{STDIN}} variable:    echo "some text" | runprompt summarize.prompt
+  Pass args for {{ARGS}} variable:     runprompt hello.prompt Some text here
 
 Environment:
   ANTHROPIC_API_KEY       API key for Anthropic models
@@ -81,6 +82,7 @@ Tools:
 
 Examples:
   runprompt hello.prompt
+  runprompt hello.prompt Some text to process
   echo '{"name": "World"}' | runprompt hello.prompt
   runprompt --model openai/gpt-4o hello.prompt
   runprompt -v --save-response out.json hello.prompt
@@ -1009,8 +1011,13 @@ def main():
     if not provider:
         print("No provider in model string", file=sys.stderr)
         sys.exit(1)
+    # Collect extra args after prompt file
+    extra_args = remaining[1:] if len(remaining) > 1 else []
+    args_str = " ".join(extra_args)
+    log("Extra args: %s" % args_str)
+
     raw_input = read_stdin()
-    variables = {"STDIN": raw_input or ""}
+    variables = {"STDIN": raw_input or "", "ARGS": args_str}
     if raw_input:
         try:
             parsed = json.loads(raw_input)
