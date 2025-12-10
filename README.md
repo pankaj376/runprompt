@@ -181,6 +181,38 @@ Run this tool? [y/n]: y
 The weather in Tokyo is currently 72°F and sunny.
 ```
 
+### Safe tools
+
+Mark tools as "safe" to allow them to run without confirmation when using `--safe-yes`:
+
+```python
+# my_tools.py
+def get_weather(city: str):
+    """Gets the current weather for a city (read-only operation)."""
+    return {"temp": 72, "conditions": "sunny"}
+
+get_weather.safe = True  # Mark as safe
+
+def delete_file(path: str):
+    """Deletes a file from the filesystem."""
+    os.remove(path)
+    return "deleted"
+
+# Not marked as safe - will always prompt for confirmation
+```
+
+Run with `--safe-yes` to auto-approve safe tools:
+
+```bash
+./runprompt --safe-yes weather.prompt
+```
+
+With `--safe-yes`:
+- Tools marked with `fn.safe = True` run without prompting
+- Tools without the safe attribute still prompt for confirmation
+
+This is useful for automation where you trust certain read-only or low-risk operations but still want confirmation for potentially dangerous actions.
+
 ### Tool import paths
 
 Tools are searched for in:

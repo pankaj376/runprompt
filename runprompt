@@ -49,6 +49,7 @@ Options:
   --base-url <url>        Use custom OpenAI-compatible endpoint
   --openai-base-url <url> Use custom OpenAI-compatible endpoint
   --tool-path <path>      Add directory to tool import path (can be repeated)
+  --safe-yes              Auto-approve tool calls for functions marked as safe
   --<key>=<value>         Override frontmatter value (e.g. --model=openai/gpt-4o)
   --<key> <value>         Override frontmatter value (e.g. --model openai/gpt-4o)
 
@@ -67,14 +68,28 @@ Environment:
   RUNPROMPT_CACHE         Enable caching (set to 1)
   RUNPROMPT_CACHE_DIR     Custom cache directory
 
+Tools:
+  Mark a function as safe by setting fn.safe = True after the definition:
+  
+    def my_safe_tool(x: str):
+        \"\"\"A safe tool that only reads data.\"\"\"
+        return "result"
+    my_safe_tool.safe = True
+  
+  Safe tools are auto-approved when --safe-yes is passed.
+
 Examples:
   runprompt hello.prompt
   echo '{"name": "World"}' | runprompt hello.prompt
   runprompt --model openai/gpt-4o hello.prompt
   runprompt -v --save-response out.json hello.prompt
   runprompt --cache hello.prompt
+  runprompt --safe-yes tool_prompt.prompt
   OPENAI_BASE_URL=http://localhost:11434/v1 runprompt hello.prompt
 """
+
+# Global for tracking if stdin has been consumed
+STDIN_CONSUMED = False
 
 
 def log(msg):
@@ -559,29 +574,41 @@ def load_tools(tool_specs, search_paths):
     return tools
 
 
-def truncate_value(value, max_len=200):
+def truncate_value(value, max_len=50):
     s = str(value)
     if len(s) <= max_len:
         return s
-    head = 80
-    tail = 80
-    middle = len(s) - head - tail
-    return "%s...%d additional characters...%s" % (s[:head], middle, s[-tail:])
+    return s[:max_len - 3] + "..."
 
 
-def truncate_args_for_display(args):
-    if isinstance(args, dict):
-        result = {}
-        for k, v in args.items():
-            if isinstance(v, str):
-                result[k] = truncate_value(v)
-            else:
-                result[k] = v
-        return result
-    return args
+def format_tool_call_summary(tool_name, args):
+    if not args:
+        return "Tool: %s()" % tool_name
+    arg_parts = []
+    for k, v in args.items():
+        if isinstance(v, str):
+            truncated = truncate_value(v, 30)
+            arg_parts.append('%s="%s"' % (k, truncated))
+        else:
+            arg_parts.append("%s=%s" % (k, truncate_value(v, 30)))
+    args_str = ", ".join(arg_parts)
+    if len(args_str) > 60:
+        args_str = args_str[:57] + "..."
+    return "Tool: %s(%s)" % (tool_name, args_str)
+
+
+def print_tool_call(tool_name, args):
+    summary = format_tool_call_summary(tool_name, args)
+    print(summary, file=sys.stderr)
 
 
 def read_tty_line(prompt_text):
+    # If stdin is a tty (e.g. running in a pty for testing), read from it directly
+    if sys.stdin.isatty():
+        sys.stderr.write(prompt_text)
+        sys.stderr.flush()
+        return sys.stdin.readline().strip()
+    # Try /dev/tty for interactive input when stdin is a pipe
     try:
         tty = open("/dev/tty", "r")
         sys.stderr.write(prompt_text)
@@ -590,14 +617,12 @@ def read_tty_line(prompt_text):
         tty.close()
         return response
     except (IOError, OSError):
-        return None
+        pass
+    # No input available
+    return None
 
 
 def prompt_user_for_tool(tool_name, args):
-    display_args = truncate_args_for_display(args)
-    print("\nTool call: %s" % tool_name, file=sys.stderr)
-    print("Arguments: %s" % json.dumps(display_args, indent=2), file=sys.stderr)
-    print("", file=sys.stderr)
     while True:
         response = read_tty_line("Run this tool? [Y/n]: ")
         if response is None:
@@ -607,6 +632,10 @@ def prompt_user_for_tool(tool_name, args):
         if response.lower() in ("n", "no"):
             return False
         print("Please enter 'y' or 'n'", file=sys.stderr)
+
+
+def is_tool_safe(tool_func):
+    return getattr(tool_func, 'safe', False)
 
 
 def execute_tool(tool_func, args):
@@ -867,6 +896,7 @@ def parse_args(args):
     base_url = None
     use_cache = False
     clear_cache_flag = False
+    safe_yes = False
     tool_paths = []
     overrides = {}
     remaining = []
@@ -882,6 +912,8 @@ def parse_args(args):
             use_cache = True
         elif arg == "--clear-cache":
             clear_cache_flag = True
+        elif arg == "--safe-yes":
+            safe_yes = True
         elif arg == "--save-response":
             if i + 1 < len(args):
                 i += 1
@@ -926,19 +958,24 @@ def parse_args(args):
             remaining.append(arg)
         i += 1
     return verbose, save_response_path, base_url, use_cache, clear_cache_flag, \
-        tool_paths, overrides, remaining
+        safe_yes, tool_paths, overrides, remaining
 
 
 def read_stdin():
+    global STDIN_CONSUMED
     if sys.stdin.isatty():
         return None
-    return sys.stdin.read().strip() or None
+    content = sys.stdin.read()
+    if not content:
+        return None
+    STDIN_CONSUMED = True
+    return content.strip() or None
 
 
 def main():
     global VERBOSE, PROMPT_PATH
     verbose, save_response_path, arg_base_url, use_cache, clear_cache_flag, \
-        tool_paths, arg_overrides, remaining = parse_args(sys.argv[1:])
+        safe_yes, tool_paths, arg_overrides, remaining = parse_args(sys.argv[1:])
     VERBOSE = verbose
 
     if clear_cache_flag:
@@ -1094,15 +1131,26 @@ def main():
                     tc, None, error_msg, effective_provider))
                 continue
 
-            # Prompt user for confirmation
-            if not prompt_user_for_tool(tool_name, tool_args):
+            tool_func = tools[tool_name]["func"]
+
+            # Always print tool call summary
+            print_tool_call(tool_name, tool_args)
+
+            # Check if --safe-yes is enabled and tool is safe
+            if safe_yes and is_tool_safe(tool_func):
+                log("Auto-approving safe tool: %s" % tool_name)
+                approved = True
+            else:
+                # Prompt user for confirmation
+                approved = prompt_user_for_tool(tool_name, tool_args)
+
+            if not approved:
                 error_msg = "Tool execution declined by user"
                 messages.append(build_tool_result_message(
                     tc, None, error_msg, effective_provider))
                 continue
 
             # Execute the tool
-            tool_func = tools[tool_name]["func"]
             result, error = execute_tool(tool_func, tool_args)
 
             if error:
