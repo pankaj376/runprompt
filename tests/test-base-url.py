@@ -66,11 +66,20 @@ def test(name, func):
         failed += 1
 
 
+def clean_env():
+    """Return a copy of environ with RUNPROMPT_* vars removed."""
+    env = os.environ.copy()
+    for key in list(env.keys()):
+        if key.startswith('RUNPROMPT_'):
+            del env[key]
+    return env
+
+
 def test_base_url_env():
     """Test OPENAI_BASE_URL environment variable."""
     server = start_server(MOCK_PORT)
     try:
-        env = os.environ.copy()
+        env = clean_env()
         env['OPENAI_BASE_URL'] = 'http://127.0.0.1:%d' % MOCK_PORT
         env['OPENAI_API_KEY'] = 'test-key'
         result = subprocess.run(
@@ -95,7 +104,7 @@ def test_base_url_cli():
     """Test --base-url CLI flag."""
     server = start_server(MOCK_PORT + 1)
     try:
-        env = os.environ.copy()
+        env = clean_env()
         env['OPENAI_API_KEY'] = 'cli-test-key'
         for key in ['OPENAI_BASE_URL', 'BASE_URL']:
             env.pop(key, None)
@@ -122,7 +131,7 @@ def test_base_url_fallback():
     """Test BASE_URL fallback environment variable."""
     server = start_server(MOCK_PORT + 2)
     try:
-        env = os.environ.copy()
+        env = clean_env()
         env.pop('OPENAI_BASE_URL', None)
         env['BASE_URL'] = 'http://127.0.0.1:%d' % (MOCK_PORT + 2)
         env['OPENAI_API_KEY'] = 'fallback-key'
@@ -143,7 +152,7 @@ def test_provider_ignored_with_base_url():
     """Test that provider prefix is ignored when base URL is set."""
     server = start_server(MOCK_PORT + 3)
     try:
-        env = os.environ.copy()
+        env = clean_env()
         env['OPENAI_BASE_URL'] = 'http://127.0.0.1:%d' % (MOCK_PORT + 3)
         env['OPENAI_API_KEY'] = 'test-key'
         result = subprocess.run(
@@ -155,8 +164,10 @@ def test_provider_ignored_with_base_url():
         )
         assert result.returncode == 0, "Expected success, got: %s" % result.stderr
         req = MockHandler.received_requests[0]
+        print("DEBUG: model in request body: %s" % req['body'].get('model'))
+        print("DEBUG: full request body: %s" % json.dumps(req['body'], indent=2))
         assert req['body']['model'] == 'claude-sonnet-4-20250514', \
-            "Provider prefix not stripped from model"
+            "Provider prefix not stripped from model, got: %s" % req['body'].get('model')
     finally:
         server.shutdown()
 
