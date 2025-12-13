@@ -1,3 +1,7 @@
+This file is purely to document missing dotprompt stuff.
+It is not a roadmap for things that will definitely be implemented.
+If something in here is important to you please file an issue.
+
 # Dotprompt Spec Compliance Roadmap
 
 Comparison of `runprompt` against the [Dotprompt specification](https://github.com/google/dotprompt).

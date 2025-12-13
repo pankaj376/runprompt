@@ -271,11 +271,27 @@ FileNotFoundError: [Errno 2] No such file or directory: 'missing.txt'
 I couldn't read that file because it doesn't exist. Would you like me to try a different path?
 ```
 
-See [SPEC-tools.md](SPEC-tools.md) for the full tool calling specification.
+### Underscore prefix
+
+Files or functions starting with `_` are excluded from wildcard imports:
+
+```python
+# _helpers.py - this entire file is excluded from wildcard imports
+# my_tools.py
+def _private_helper():  # excluded from wildcard imports
+    """Internal helper function."""
+    pass
+
+def public_tool():  # included in wildcard imports
+    """A tool available to the LLM."""
+    pass
+```
+
+Use `_` prefix for helper functions you don't want exposed as tools.
 
 ## Template syntax
 
-Templates use [Handlebars syntax](https://google.github.io/dotprompt/reference/template/). Supported features:
+Templates use a useful subset of [Handlebars/Mustache syntax](https://google.github.io/dotprompt/reference/template/). Supported features:
 
 - Variable interpolation: `{{variableName}}`, `{{object.property}}`
 - Comments: `{{! this is a comment }}`
@@ -375,5 +391,3 @@ This is a minimal implementation of the [Dotprompt specification](https://google
 - Model config (`temperature`, `maxOutputTokens`, etc.)
 - Partials (`{{>partialName}}`)
 - Nested Picoschema (objects, arrays of objects, enums)
-
-See [TODO.md](TODO.md) for the full roadmap.
