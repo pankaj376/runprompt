@@ -376,8 +376,8 @@ def parse_prompt_file(path):
 def parse_yaml(s):
     result = {}
     stack = [(result, -1)]
-    current_list_key = None
     current_list = None
+    current_list_key = None
     current_list_indent = -1
     for line in s.split("\n"):
         if not line.strip() or line.strip().startswith("#"):
@@ -388,7 +388,7 @@ def parse_yaml(s):
         if list_match:
             item_value = list_match.group(2).strip()
             if current_list is not None and indent > current_list_indent:
-                current_list.append(item_value)
+                current_list.append(parse_yaml_value(item_value) if item_value else item_value)
                 continue
         # Not a list item or different context - reset list tracking
         if current_list is not None and indent <= current_list_indent:
@@ -397,6 +397,8 @@ def parse_yaml(s):
             current_list_indent = -1
         while stack and indent <= stack[-1][1]:
             stack.pop()
+        if not stack:
+            stack = [(result, -1)]
         match = re.match(r"^(\s*)([^:]+):\s*(.*)", line)
         if not match:
             continue
@@ -404,36 +406,24 @@ def parse_yaml(s):
         value = match.group(3).strip()
         parent = stack[-1][0]
         if value:
-            if value.lower() == "true":
-                parent[key] = True
-            elif value.lower() == "false":
-                parent[key] = False
-            elif re.match(r"^-?\d+$", value):
-                parent[key] = int(value)
-            elif re.match(r"^-?\d+\.\d+$", value):
-                parent[key] = float(value)
-            else:
-                parent[key] = value
+            parent[key] = parse_yaml_value(value)
         else:
             parent[key] = {}
             stack.append((parent[key], indent))
-            # Check if next lines are list items
+            # Set up for potential list children
             current_list_key = key
             current_list = []
             parent[key] = current_list
             current_list_indent = indent
     # Convert empty lists back to empty dicts
-    def fix_empty_lists(obj):
+    def fix_empty(obj):
         if isinstance(obj, dict):
             for k, v in obj.items():
                 if isinstance(v, list) and len(v) == 0:
                     obj[k] = {}
                 else:
-                    fix_empty_lists(v)
-        elif isinstance(obj, list):
-            for item in obj:
-                fix_empty_lists(item)
-    fix_empty_lists(result)
+                    fix_empty(v)
+    fix_empty(result)
     return result
 
 
