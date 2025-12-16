@@ -11,6 +11,20 @@ import importlib.util
 import inspect
 import argparse
 
+# Global config state (loaded once at startup)
+CONFIG = {
+    "files": {},      # Merged config from all config files
+    "env": {},        # Parsed from RUNPROMPT_* env vars
+    "args": {},       # From command line arguments
+}
+
+# Config keys that support the cascade
+CONFIG_KEYS = {
+    "model", "tool_path", "base_url", "cache", "cache_dir", "safe_yes",
+    "verbose", "anthropic_api_key", "openai_api_key", "google_api_key",
+    "openrouter_api_key",
+}
+
 PROVIDERS = {
     "openrouter": {
         "url": "https://openrouter.ai/api/v1/chat/completions",
@@ -35,21 +49,115 @@ YELLOW = "\033[33m"
 RESET = "\033[0m"
 TIMEOUT = 120
 
-VERBOSE = False
+# === CONFIGURATION CASCADE ===
+
+
+def load_config_files():
+    """Load config from cascade of config file locations (lowest to highest priority)."""
+    config = {}
+    locations = [
+        os.path.join(os.path.expanduser("~"), ".runprompt", "config.yml"),
+        os.path.join(
+            os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
+            "runprompt", "config.yml"
+        ),
+        os.path.join(".", ".runprompt", "config.yml"),
+    ]
+    for path in locations:
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    file_config = parse_yaml(f.read())
+                    if file_config:
+                        for key, value in file_config.items():
+                            config[normalize_key(key)] = value
+            except Exception as e:
+                print("Warning: Could not load config from %s: %s" % (path, e),
+                      file=sys.stderr)
+    return config
+
+
+def load_config_env():
+    """Load config from RUNPROMPT_* environment variables."""
+    config = {}
+    for env_key, env_value in os.environ.items():
+        if env_key.startswith("RUNPROMPT_"):
+            key = normalize_key(env_key[10:])
+            if key in ("cache_dir",):
+                config[key] = env_value
+            else:
+                config[key] = parse_yaml_value(env_value)
+    return config
+
+
+def normalize_key(key):
+    """Normalize config key: lowercase, underscores instead of hyphens."""
+    return key.lower().replace("-", "_")
+
+
+def get_conf(key, default=None):
+    """Get config value with cascade priority: files < env < args."""
+    key = normalize_key(key)
+    # Check args first (highest priority)
+    if key in CONFIG["args"]:
+        return CONFIG["args"][key]
+    # Check env vars
+    if key in CONFIG["env"]:
+        return CONFIG["env"][key]
+    # Check config files
+    if key in CONFIG["files"]:
+        return CONFIG["files"][key]
+    return default
+
+
+def get_api_key(provider):
+    """Get API key for provider, checking config cascade then native env var."""
+    key_name = provider + "_api_key"
+    # First check config cascade
+    from_conf = get_conf(key_name)
+    if from_conf:
+        return from_conf
+    # Fall back to native env var (e.g. ANTHROPIC_API_KEY)
+    env_var = PROVIDERS.get(provider, {}).get("env")
+    if env_var:
+        return os.environ.get(env_var)
+    return None
+
+
+def init_config(args):
+    """Initialize global config from all sources."""
+    CONFIG["files"] = load_config_files()
+    CONFIG["env"] = load_config_env()
+    # Convert args to dict
+    args_dict = {}
+    if args.verbose:
+        args_dict["verbose"] = True
+    if args.cache:
+        args_dict["cache"] = True
+    if args.safe_yes:
+        args_dict["safe_yes"] = True
+    if args.base_url:
+        args_dict["base_url"] = args.base_url
+    if args.tool_path:
+        args_dict["tool_path"] = args.tool_path
+    # Include overrides from --key=value
+    for key, value in args.overrides.items():
+        args_dict[normalize_key(key)] = value
+    CONFIG["args"] = args_dict
+
 
 # === MAIN ENTRY POINT ===
 
 
 def main():
-    global VERBOSE
     args = parse_args(sys.argv[1:])
-    VERBOSE = args.verbose
+    init_config(args)
 
     if args.clear_cache:
         clear_cache()
         sys.exit(0)
 
-    use_cache = args.cache or os.environ.get("RUNPROMPT_CACHE") == "1"
+    use_cache = get_conf("cache", False)
 
     if len(args.remaining) < 1:
         print("Usage: runprompt [options] <prompt_file>", file=sys.stderr)
@@ -58,6 +166,9 @@ def main():
     prompt_path = args.remaining[0]
     meta, template = parse_prompt_file(prompt_path)
     meta = apply_overrides(meta)
+    # Apply model from config cascade if not in frontmatter
+    if not meta.get("model") and get_conf("model"):
+        meta["model"] = get_conf("model")
     for key, value in args.overrides.items():
         log("Override from arg --%s: %s" % (key, value))
         if key == "tools" and isinstance(value, str):
@@ -121,7 +232,11 @@ def main():
     prompt_dir = os.path.dirname(os.path.abspath(prompt_path))
     if prompt_dir not in search_paths:
         search_paths.append(prompt_dir)
-    for tp in args.tool_path:
+    # Add tool paths from config cascade
+    conf_tool_paths = get_conf("tool_path", [])
+    if isinstance(conf_tool_paths, str):
+        conf_tool_paths = [conf_tool_paths]
+    for tp in conf_tool_paths:
         abs_tp = os.path.abspath(tp)
         if abs_tp not in search_paths:
             search_paths.append(abs_tp)
@@ -143,7 +258,7 @@ def main():
         print(result)
         return
 
-    base_url = args.base_url or get_base_url()
+    base_url = get_conf("base_url") or get_base_url()
     if base_url:
         url, api_key = get_provider_config(provider, base_url)
         effective_provider = "openai"
@@ -224,8 +339,8 @@ def main():
             # Always print tool call summary
             print_tool_call(tool_name, tool_args)
 
-            # Check if --safe-yes is enabled and tool is safe
-            if args.safe_yes and is_tool_safe(tool_func):
+            # Check if safe-yes is enabled and tool is safe
+            if get_conf("safe_yes") and is_tool_safe(tool_func):
                 log("Auto-approving safe tool: %s" % tool_name)
                 approved = True
             else:
@@ -254,16 +369,31 @@ Input:
   Pipe text for {{STDIN}} variable:    echo "some text" | runprompt summarize.prompt
   Pass args for {{ARGS}} variable:     runprompt hello.prompt Some text here
 
+Config files (lowest to highest priority):
+  ~/.runprompt/config.yml
+  $XDG_CONFIG_HOME/runprompt/config.yml (default: ~/.config/runprompt/config.yml)
+  ./.runprompt/config.yml
+
+Config file example:
+  model: openai/gpt-4o
+  tool_path:
+    - ./tools
+    - /shared/tools
+  cache: true
+  safe_yes: true
+  openai_api_key: sk-...
+
 Environment:
   ANTHROPIC_API_KEY       API key for Anthropic models
   OPENAI_API_KEY          API key for OpenAI models
   GOOGLE_API_KEY          API key for Google AI models
   OPENROUTER_API_KEY      API key for OpenRouter models
   OPENAI_BASE_URL         Custom OpenAI-compatible endpoint URL
-  BASE_URL                Custom OpenAI-compatible endpoint URL (fallback)
-  RUNPROMPT_<KEY>         Override frontmatter (e.g. RUNPROMPT_MODEL=openai/gpt-4o)
-  RUNPROMPT_CACHE         Enable caching (set to 1)
-  RUNPROMPT_CACHE_DIR     Custom cache directory
+  OPENAI_API_BASE         Custom endpoint URL (legacy OpenAI SDK v0.x style)
+  BASE_URL                Custom endpoint URL (fallback)
+  RUNPROMPT_<KEY>         Override config (e.g. RUNPROMPT_MODEL=openai/gpt-4o)
+
+Config priority (highest wins): CLI flags > env vars > ./.runprompt > ~/.config > ~/.runprompt
 
 Tools:
   Mark a function as safe by setting fn.safe = True after the definition:
@@ -447,15 +577,15 @@ def parse_yaml_value(s):
 
 
 def apply_overrides(meta):
-    for env_key, env_value in os.environ.items():
-        if env_key.startswith("RUNPROMPT_"):
-            if env_key in ("RUNPROMPT_CACHE", "RUNPROMPT_CACHE_DIR"):
-                continue
-            key = env_key[10:].lower()
-            parsed = parse_yaml_value(env_value)
-            if parsed is not None:
-                log("Override from env %s: %s" % (env_key, parsed))
-                meta[key] = parsed
+    """Apply RUNPROMPT_* env vars to prompt metadata (for prompt-specific overrides)."""
+    for key in CONFIG["env"]:
+        # Skip config-level keys, only apply prompt-specific overrides
+        if key in CONFIG_KEYS:
+            continue
+        value = CONFIG["env"][key]
+        if value is not None:
+            log("Override from env RUNPROMPT_%s: %s" % (key.upper(), value))
+            meta[key] = value
     return meta
 
 
@@ -642,20 +772,23 @@ def parse_model_string(model_str):
 
 
 def get_base_url():
-    return os.environ.get("OPENAI_BASE_URL") or os.environ.get("BASE_URL")
+    """Get base URL from legacy env vars (fallback after config cascade)."""
+    return (os.environ.get("OPENAI_BASE_URL") or
+            os.environ.get("OPENAI_API_BASE") or
+            os.environ.get("BASE_URL"))
 
 
 def get_provider_config(provider, base_url=None):
     if base_url:
         url = base_url.rstrip("/") + "/chat/completions"
-        api_key = os.environ.get("OPENAI_API_KEY", "")
+        api_key = get_api_key("openai") or ""
         log("Using custom base URL: %s" % url)
         return url, api_key
     if provider not in PROVIDERS:
         print("Unknown provider: %s" % provider, file=sys.stderr)
         sys.exit(1)
     config = PROVIDERS[provider]
-    api_key = os.environ.get(config["env"])
+    api_key = get_api_key(provider)
     if not api_key:
         print("Missing API key: %s" % config["env"], file=sys.stderr)
         sys.exit(1)
@@ -1130,8 +1263,9 @@ def clear_cache():
 
 
 def get_cache_dir():
-    if os.environ.get("RUNPROMPT_CACHE_DIR"):
-        return os.environ["RUNPROMPT_CACHE_DIR"]
+    from_conf = get_conf("cache_dir")
+    if from_conf:
+        return from_conf
     xdg_cache = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
     return os.path.join(xdg_cache, "runprompt")
 
@@ -1159,7 +1293,7 @@ def save_response(response, provider, save_path):
 
 
 def log(msg):
-    if VERBOSE:
+    if get_conf("verbose", False):
         print(msg, file=sys.stderr)
 
 

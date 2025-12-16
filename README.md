@@ -4,7 +4,7 @@ A single-file Python script for running [Dotprompt](https://google.github.io/dot
 
 [Dotprompt](https://google.github.io/dotprompt/) is an prompt template format for LLMs where a `.prompt` file contains the prompt and metadata (model, schema, config) in a single file.
 
-[Quick start](#quick-start) | [Examples](#examples) | [Tools](#tools) | [Configuration](#configuration) | [Providers](#providers) | [Caching](#caching) | [Spec compliance](#spec-compliance)
+[Quick start](#quick-start) | [Examples](#examples) | [Tools](#tools) | [Template syntax](#template-syntax) | [Configuration](#configuration) | [Providers](#providers) | [Caching](#caching) | [Spec compliance](#spec-compliance)
 
 ## Quick start
 
@@ -305,46 +305,78 @@ Falsy values: `false`, `0`, `""` (empty string), `[]` (empty list), missing/unde
 
 ## Configuration
 
-### Environment variables
+Configuration values can be set from config file, env var or command line flag, with flags overriding env vars which override config file settings.
 
-Set API keys for your providers:
+1. **Config files** (lowest priority, loaded in order):
+   - `~/.runprompt/config.yml`
+   - `$XDG_CONFIG_HOME/runprompt/config.yml` (default: `~/.config/runprompt/config.yml`)
+   - `./.runprompt/config.yml` (project-local)
+2. **Environment variables** (`RUNPROMPT_*` prefix)
+3. **CLI flags** (highest priority)
 
-```bash
-export ANTHROPIC_API_KEY="..."  # https://console.anthropic.com/settings/keys
-export OPENAI_API_KEY="..."     # https://platform.openai.com/api-keys
-export GOOGLE_API_KEY="..."     # https://aistudio.google.com/app/apikey
-export OPENROUTER_API_KEY="..." # https://openrouter.ai/settings/keys
+### Config options
+
+| Option | Config file | Environment variable | CLI flag |
+|--------|-------------|---------------------|----------|
+| Model | `model: openai/gpt-4o` | `RUNPROMPT_MODEL` | `--model` |
+| Base URL | `base_url: http://...` | `RUNPROMPT_BASE_URL` | `--base-url` |
+| Tool paths | `tool_path: [./tools]` | `RUNPROMPT_TOOL_PATH` | `--tool-path` |
+| Cache | `cache: true` | `RUNPROMPT_CACHE=1` | `--cache` |
+| Cache dir | `cache_dir: /path` | `RUNPROMPT_CACHE_DIR` | - |
+| Safe yes | `safe_yes: true` | `RUNPROMPT_SAFE_YES=1` | `--safe-yes` |
+| Verbose | `verbose: true` | `RUNPROMPT_VERBOSE=1` | `--verbose` |
+
+### API keys
+
+API keys can be set via config file, `RUNPROMPT_*` env var, or native env var:
+
+| Provider | Config file | RUNPROMPT env var | Native env var |
+|----------|-------------|-------------------|----------------|
+| Anthropic | `anthropic_api_key: sk-...` | `RUNPROMPT_ANTHROPIC_API_KEY` | `ANTHROPIC_API_KEY` |
+| OpenAI | `openai_api_key: sk-...` | `RUNPROMPT_OPENAI_API_KEY` | `OPENAI_API_KEY` |
+| Google AI | `google_api_key: ...` | `RUNPROMPT_GOOGLE_API_KEY` | `GOOGLE_API_KEY` |
+| OpenRouter | `openrouter_api_key: ...` | `RUNPROMPT_OPENROUTER_API_KEY` | `OPENROUTER_API_KEY` |
+
+Priority for API keys: config file, env var, then flag as fallback.
+
+### Config file example
+
+```yaml
+# ~/.runprompt/config.yml or ./.runprompt/config.yml
+model: openai/gpt-4o
+cache: true
+safe_yes: true
+tool_path:
+  - ./tools
+  - /shared/tools
+openai_api_key: sk-...
 ```
 
 ### Custom endpoint (Ollama, etc.)
 
-Use `OPENAI_BASE_URL` or `BASE_URL` to point at any OpenAI-compatible endpoint:
+Use `base_url` to point at any OpenAI-compatible endpoint:
 
 ```bash
-# Use Ollama
-export OPENAI_BASE_URL="http://localhost:11434/v1"
-./runprompt hello.prompt
+# Via config file
+# base_url: http://localhost:11434/v1
 
-# Or via CLI flag
+# Via environment variable
+export RUNPROMPT_BASE_URL="http://localhost:11434/v1"
+
+# Via CLI flag
 ./runprompt --base-url http://localhost:11434/v1 hello.prompt
+
+# Legacy env vars also work (checked in this order)
+export OPENAI_BASE_URL="http://localhost:11434/v1"
+export OPENAI_API_BASE="http://localhost:11434/v1"  # OpenAI SDK v0.x style
+export BASE_URL="http://localhost:11434/v1"
 ```
 
 When a custom base URL is set, the provider prefix in the model string is ignored and the OpenAI-compatible API format is used.
 
-### RUNPROMPT_* overrides
-
-Override any frontmatter value via environment variables prefixed with `RUNPROMPT_`:
-
-```bash
-export RUNPROMPT_MODEL="anthropic/claude-haiku-4-20250514"
-./runprompt hello.prompt
-```
-
-This is useful for setting defaults across multiple prompt runs.
-
 ### Verbose mode
 
-Use `-v` to see request/response details:
+Use `-v` or set `verbose: true` to see request/response details:
 
 ```bash
 ./runprompt -v hello.prompt
