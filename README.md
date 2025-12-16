@@ -343,7 +343,7 @@ Priority for API keys: config file, env var, then flag as fallback.
 ### Config file example
 
 ```yaml
-# ~/.runprompt/config.yml or ./.runprompt/config.yml
+# ./.runprompt/config.yml, ~/.config/runprompt/config.yml, or ~/.runprompt/config.yml
 model: openai/gpt-4o
 default_model: anthropic/claude-sonnet-4-20250514  # fallback if model not set anywhere
 cache: true
