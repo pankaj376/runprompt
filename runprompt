@@ -1396,6 +1396,99 @@ def _fetch_clean_simple(url: str):
     return extractor.get_text()
 
 
+def calculator(expression: str):
+    """Evaluate a mathematical expression safely.
+
+    Supports arithmetic (+, -, *, /, //, %, **), scientific functions
+    (sin, cos, tan, log, sqrt, exp, etc.), and constants (pi, e, tau).
+    """
+    import ast
+    import operator
+    import math
+
+    allowed_ops = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+
+    allowed_functions = {
+        'sin': math.sin, 'cos': math.cos, 'tan': math.tan,
+        'asin': math.asin, 'acos': math.acos, 'atan': math.atan,
+        'atan2': math.atan2,
+        'sinh': math.sinh, 'cosh': math.cosh, 'tanh': math.tanh,
+        'asinh': math.asinh, 'acosh': math.acosh, 'atanh': math.atanh,
+        'exp': math.exp, 'log': math.log, 'log10': math.log10,
+        'log2': math.log2, 'sqrt': math.sqrt, 'pow': pow,
+        'abs': abs, 'ceil': math.ceil, 'floor': math.floor,
+        'trunc': math.trunc, 'round': round,
+        'degrees': math.degrees, 'radians': math.radians,
+        'factorial': math.factorial, 'gcd': math.gcd,
+        'max': max, 'min': min, 'sum': sum,
+    }
+    if hasattr(math, 'lcm'):
+        allowed_functions['lcm'] = math.lcm
+
+    allowed_constants = {
+        'pi': math.pi, 'e': math.e, 'tau': math.tau,
+        'inf': math.inf, 'nan': math.nan,
+    }
+
+    def _eval(node):
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+        elif isinstance(node, ast.Constant):
+            if isinstance(node.value, (int, float, complex)):
+                return node.value
+            raise ValueError("Only numbers allowed, not %s" %
+                             type(node.value).__name__)
+        elif isinstance(node, ast.Num):
+            return node.n
+        elif isinstance(node, ast.Str):
+            raise ValueError("Only numbers allowed, not str")
+        elif isinstance(node, ast.BinOp):
+            if type(node.op) not in allowed_ops:
+                raise ValueError("Operation not allowed: %s" %
+                                 type(node.op).__name__)
+            return allowed_ops[type(node.op)](_eval(node.left),
+                                              _eval(node.right))
+        elif isinstance(node, ast.UnaryOp):
+            if type(node.op) not in allowed_ops:
+                raise ValueError("Operation not allowed: %s" %
+                                 type(node.op).__name__)
+            return allowed_ops[type(node.op)](_eval(node.operand))
+        elif isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name):
+                raise ValueError("Only simple function calls allowed")
+            func_name = node.func.id
+            if func_name not in allowed_functions:
+                raise ValueError("Function not allowed: %s" % func_name)
+            args = [_eval(arg) for arg in node.args]
+            return allowed_functions[func_name](*args)
+        elif isinstance(node, ast.Name):
+            if node.id in allowed_constants:
+                return allowed_constants[node.id]
+            raise ValueError("Name not allowed: %s" % node.id)
+        elif isinstance(node, ast.List):
+            return [_eval(item) for item in node.elts]
+        elif isinstance(node, ast.Tuple):
+            return tuple(_eval(item) for item in node.elts)
+        else:
+            raise ValueError("Node type not allowed: %s" % type(node).__name__)
+
+    tree = ast.parse(expression, mode='eval')
+    return _eval(tree)
+
+
+calculator.safe = True
+
+
 def fetch_clean(url: str):
     """Fetch a web page and extract its main content as HTML.
 
@@ -1438,6 +1531,7 @@ fetch_clean.safe = True
 
 
 BUILTIN_TOOLS = {
+    "calculator": calculator,
     "fetch_clean": fetch_clean,
 }
 

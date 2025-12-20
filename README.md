@@ -294,6 +294,7 @@ Available builtin tools:
 
 | Tool | Description |
 |------|-------------|
+| `calculator` | Safely evaluate mathematical expressions (arithmetic, trig, log, etc.) |
 | `fetch_clean` | Fetch a URL and extract visible text content (HTML tags removed) |
 
 Use `builtin.*` to import all builtin tools, or `builtin.tool_name` for a specific one.
