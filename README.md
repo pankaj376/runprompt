@@ -25,11 +25,13 @@ Say hello to {{name}}!
 Run it:
 
 ```bash
-export OPENAI_API_KEY="your-key"
+export ANTHROPIC_API_KEY="your-key"
+./runprompt hello.prompt '{"name": "World"}'
+# alternatively pass data via STDIN.
 echo '{"name": "World"}' | ./runprompt hello.prompt
 ```
 
-(You can get an OpenAI key from here: <https://platform.openai.com/api-keys>)
+(You can get an Anthropic key from here: <https://console.anthropic.com/settings/keys> see below for other keys.)
 
 ## Examples
 
